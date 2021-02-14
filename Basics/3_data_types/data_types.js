@@ -4,7 +4,7 @@
 // Javscript is dynamically type meaning we can assign  a number and can reassign with string later etc
 
 //1) Number  Max value (2power53-1)
-// integer and float are called number aprt fromthat Infinity,-Infinity and Nan
+// integer and float are called number aprt fromthat Infinity,-Infinity and NaN
 
 alert(1/0); //Infinity; [not an error]
 alert(Infinity);
