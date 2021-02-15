@@ -18,6 +18,8 @@ alert("6"/"2") //=>automatic type conversion to numbers and output is 3
 // If the str is not valid the result of such a conversion is NaN
 
 alert("hai"/"2"); // NaN
+alert("   22   "/"2"); // 11
+alert("   2 2   "/"2"); // NaN bacause white space in between string
 /*
     null ----> 0
     undefined ----> NaN
