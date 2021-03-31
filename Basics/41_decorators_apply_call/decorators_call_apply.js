@@ -175,3 +175,38 @@ alert("Again " + worker.slow(3, 5)); // same (cached)
     function.call(context,...args)
     function.apply(context,args) // we can use array or array like object bot are valid
 */
+
+/* 
+    Method borrowing trick
+
+    sometimes its possible to get a method in array and work with array like 
+
+*/
+
+function hash() {
+    alert([].join.call(arguments)); // 1,2
+}
+
+hash(1, 2);
+
+/*
+    In internal algorithm the join works like
+
+    this[0]
+
+    this[0] + this[1];
+
+
+    SInce internally it actually uses this to refernce the array if we pass
+    array like object to it and use apply to speciy the this context then it works that way
+
+*/
+
+
+/*
+    Final note is eventhough the above decorator give new capablities it cannot know if the function
+    has some properties already
+
+    So at that case we need to use proxies and Reflect to tackle the situation
+
+*/
