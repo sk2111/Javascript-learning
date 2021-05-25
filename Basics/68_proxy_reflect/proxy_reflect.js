@@ -415,3 +415,278 @@ sayHi = delay(sayHi, 3000);
 alert(sayHi.length); // 1 (*) proxy forwards "get length" operation to the target
 
 sayHi("John"); // Hello, John! (after 3 seconds)
+
+
+/* 
+    Reflect
+
+    Reflect is a built-in object that simplifies the creation of proxy
+
+    Previous we saw that we cant able to access the internal methods [[Get]] [[Set]] and others
+    are spec defined and we cant able to access them directly
+
+    The Reflect object makes it somewhat possible to access them , They provide an wrapper
+    around the internal methods
+
+
+Operation	        Reflect call	                Internal method
+obj[prop]	        Reflect.get(obj, prop)	        [[Get]]
+obj[prop] = value	Reflect.set(obj, prop, value)	[[Set]]
+delete obj[prop]	Reflect.deleteProperty(obj, prop)	[[Delete]]
+new F(value)	    Reflect.construct(F, value)	    [[Construct]]
+
+*/
+
+let user = {}
+
+Reflect.set(user, "name", "sathish");
+
+alert(user.name); //sathish
+
+/*  
+    Each trap method name has a corresponding method name in the Reflect object
+    and the arguments same as Proxy traps
+
+*/
+
+let user = {
+    name: "John",
+};
+
+user = new Proxy(user, {
+    get(target, prop, receiver) {
+        alert(`GET ${prop}`);
+        return Reflect.get(target, prop, receiver); // (1)
+    },
+    set(target, prop, val, receiver) {
+        alert(`SET ${prop}=${val}`);
+        return Reflect.set(target, prop, val, receiver); // (2)
+    }
+});
+
+let name = user.name; // shows "GET name"
+user.name = "Pete"; // shows "SET name=Pete"
+
+/* 
+    Reflect.get reads an object property
+    Reflect.set writes an object property and return true if successfull , false otherwise
+
+    If a trap want to pass the call to the target ,its enough to call Reflect methods
+    and pass the arguments as it takes care of everything
+
+    But as we saw earlier its possible to just use target[prop] instead of Reflect methods 
+
+    But they have some differences
+*/
+
+
+/* 
+    Proxying a getter 
+
+    Lets see an example that demonstartes why Reflect.get is better. And we will also see why get/set
+    have an third argument receiver 
+
+*/
+
+let user = {
+    _name: 'Guest',
+    get name() {
+        return this._name;
+    }
+};
+
+user = new Proxy(user, {
+    get(target, prop, receiver) {
+        return target[prop];
+    }
+});
+
+user.name;// Guest
+
+/* 
+    Everythign works correctly here but if we do an inheritence from user
+*/
+
+let admin = {
+    __proto__: user,
+    _name: "admin"
+};
+
+admin.name; // Guest 
+
+/* 
+    But how Guest appeared here ?
+
+    when admin name is called the prototype getter is called which is user here
+
+    the proptotype getter passes the target as the user not admin 
+
+    But if we look at the receiver it holds the proper value of "this"
+
+    So to avoid such confusion developers can transparently pass the call to Reflect
+
+    which takes care of dealing with things easily
+
+*/
+
+user = new Proxy(user, {
+    get(target, prop, receiver) {
+        return Reflect.get(target, prop, receiver); // even after inheritance eveything will be normal
+    }
+});
+
+
+/* 
+    Proxy limitation
+
+    Proxy provide a low level unique way to alter the behaviour of the exisiting object
+    at the lowest level. still,its not perfect. there are limitations
+
+
+    Many built in objects like Map,Set,Date,Promise and others make use of "internal slots"
+
+    For example Map use an internal slot something like [[MapData]] but proxy with [Get] [Set]
+    dont have access to them directly
+
+    Due to that we can have some issues
+
+
+
+*/
+let map = new Map();
+
+let proxy = new Proxy(map, {});
+
+proxy.set('test', 1); // Error
+
+//Here the set method is called on proxy object and there is no such method available to it throws an error
+
+//Way to fix
+
+let map = new Map();
+
+let proxy = new Proxy(map, {
+    get(target, prop, receiver) {
+        let value = Reflect.get(...arguments);
+        return typeof value == 'function' ? value.bind(target) : value;
+    }
+});
+
+proxy.set('test', 1);
+alert(proxy.get('test')); // 1 (works!)
+
+/* 
+    Now its works fine because get trap binds the function properties, such as map.set
+    to the target object (map) itself
+
+    Array has not such internal slots
+
+    Arrays are from early days and there was no such internal slots to them
+
+    So Proxying an array will not be an problem
+
+
+*/
+
+/* 
+    Private fields
+
+    Private properties in classes breaks after proxying
+    The reason is that private fields are implemented using internal slots. 
+    JavaScript does not use [[Get]]/[[Set]] when accessing them.
+
+*/
+class User {
+    #name = "Guest";
+
+    getName() {
+        return this.#name;
+    }
+}
+
+let user = new User();
+
+user = new Proxy(user, {});
+
+alert(user.getName()); // Error
+
+// the workaround solution is 
+
+class User {
+    #name = "Guest";
+
+    getName() {
+        return this.#name;
+    }
+}
+
+let user = new User();
+
+user = new Proxy(user, {
+    get(target, prop, receiver) {
+        let value = Reflect.get(...arguments);
+        return typeof value == 'function' ? value.bind(target) : value;
+    }
+});
+
+alert(user.getName()); // Guest
+
+//The above solution has its drawbacks also because it exposes original object to the method
+//potentially allowing it to passed furthur and breaking other proxied functionality
+
+
+/* 
+    Proxy != target
+
+    The proxy and the original objects are different objects.
+
+    So if we use the original object as a key and then proxy it, then the proxy cant be found
+*/
+
+let allUsers = new Set();
+
+class User {
+    constructor(name) {
+        this.name = name;
+        allUsers.add(this);
+    }
+}
+
+let user = new User("John");
+
+alert(allUsers.has(user)); // true
+
+user = new Proxy(user, {});
+
+alert(allUsers.has(user)); // false
+
+// /As we can see, after proxying we can’t find user in the set allUsers, because the proxy is a different object.
+
+/* 
+    Revocable proxies 
+
+    A revocable proxy is an object that can be disabled
+
+    Lets say we have an resource and we like to close it any moment
+
+    After calling the revoke the entire reference to the target is removed 
+    and they are no longer connected 
+    
+*/
+
+let { proxy, revoke } = Proxy.revocable(target, handler);
+
+let object = {
+    data: "Valuable data"
+};
+
+let { proxy, revoke } = Proxy.revocable(object, {});
+
+// pass the proxy somewhere instead of object...
+alert(proxy.data); // Valuable data
+
+// later in our code
+revoke();
+
+// the proxy isn't working any more (revoked)
+alert(proxy.data); // Error
