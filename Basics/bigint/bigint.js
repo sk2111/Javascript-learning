@@ -51,6 +51,18 @@ alert(2n > 1); //true
 console.log(1n === 1); //false
 console.log(1n == 1); //true
 
+//Boolean operators
+
+if(0n){
+
+}; //fasle nver executes
+
+// using with && and ||
+console.log(1n || 5); //true so 1n
+console.log(0n || 3); //false so 3
+
+
+
 
 
 
